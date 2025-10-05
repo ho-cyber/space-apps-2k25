@@ -251,7 +251,7 @@ with tab3:
     ### Notes
     - Make sure your uploaded file contains valid numerical flux data.
     - For large FITS files, it might take a few seconds to parse and predict.
-    - The model is **pre-trained on synthetic and curated light curves** for demonstration purposes.
+    - **Caution:** The model is **currently experimental and intended for demonstration purposes only**. Do not rely on it for scientific or operational decisions.  
 
     """)
 
