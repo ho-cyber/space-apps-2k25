@@ -40,7 +40,7 @@ def load_model(model_path):
     model.eval()
     return model
 
-model = load_model("../training/checkpoints/synth_model.pt")  # update if needed
+model = load_model("https://github.com/ho-cyber/space-apps-2k25/blob/main/training/checkpoints/synth_model.pt")  # update if needed
 
 # ------------------------
 # Helpers
