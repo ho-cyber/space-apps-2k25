@@ -120,7 +120,7 @@ def predict_flux_from_array(arr):
 # ------------------------
 # Streamlit Interface
 # ------------------------
-tab1, tab2 = st.tabs(["🌐 Fetch from Mission", "📤 Upload Your Own File"])
+tab1, tab2, tab3 = st.tabs(["🌐 Fetch from Mission", "📤 Upload Your Own File", "ℹ️ About / Model Info"])
 
 with tab1:
     target_name = st.text_input("Target name (KIC/TIC/star)", "Kepler-10")
@@ -223,6 +223,35 @@ with tab2:
                     - **Confidence**: {prob_yes if pred == 1 else prob_no}
                     - **Model Used**: `synth_model.pt`
                     """)
-
         except Exception as e:
             st.error(f"Error reading uploaded file: {e}")
+                    
+with tab3:
+    st.header("About This Exoplanet Transit Prediction App")
+    st.markdown("""
+    This application uses a **Transformer-based deep learning model** to detect possible exoplanet transits
+    from light curves obtained by **Kepler** and **TESS** missions.
+
+    ### How the Model Works
+    - The model is a **TimeSeriesTransformer**, trained on normalized flux arrays.
+    - It predicts whether a segment of a star's light curve shows signs of an **exoplanet transit**.
+    - Inputs can be **FITS files, CSV, TXT, or NPY arrays** of light curves.
+    - The model outputs a **binary classification** (Transit / No Transit) along with confidence probabilities.
+
+    ### Usage Instructions
+    1. **Fetch from Mission**: Enter the target star's ID (KIC/TIC) and mission, then download light curves automatically.
+    2. **Upload Your Own File**: Drag and drop your FITS/CSV/TXT/NPY file. Ensure it contains flux values over time.
+    3. **View Results**: For each light curve, the app plots the flux, shows prediction probabilities, and gives a summary.
+    
+    ### Model Details
+    - **Model file**: `synth_model.pt`
+    - **Sequence length used for training**: {SEQ_LEN}
+    - **Device used**: {DEVICE}
+    
+    ### Notes
+    - Make sure your uploaded file contains valid numerical flux data.
+    - For large FITS files, it might take a few seconds to parse and predict.
+    - The model is **pre-trained on synthetic and curated light curves** for demonstration purposes.
+
+    """)
+
