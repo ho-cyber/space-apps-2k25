@@ -23,8 +23,8 @@ try:
 except:
     Observations = None
 
-st.set_page_config(page_title="Exoplanet Transit Prediction", layout="wide")
-st.title("🔭 Exoplanet Transit Prediction")
+st.set_page_config(page_title="LightCurve AI", layout="wide")
+st.title("🔭 LightCurve AI")
 st.write("Upload your own FITS/CSV file or fetch Kepler/TESS light curves automatically.")
 
 # ------------------------
@@ -40,7 +40,7 @@ def load_model(model_path):
     model.eval()
     return model
 
-model = load_model("interface/models/synth_model.pt")  # update if needed
+model = load_model("training/models/synth_model.pt")  # update path as needed
 
 # ------------------------
 # Helpers
@@ -50,7 +50,7 @@ def safe_name(name: str):
 
 
 def read_fits_flux(file):
-    """Safely read flux data from FITS file or Streamlit UploadedFile."""
+    """Safely read flux data from FITS file or UploadedFile."""
     try:
         if hasattr(file, "read"):
             original_bytes = file.read()
@@ -58,26 +58,23 @@ def read_fits_flux(file):
             with open(file, "rb") as f:
                 original_bytes = f.read()
 
-        # --- Attempt 1: Try Lightkurve ---
+        # Attempt 1: Lightkurve
         if lk is not None:
             try:
                 lc = lk.read(io.BytesIO(original_bytes))
-
-                # Ensure flux is numeric and unmasked
                 flux = lc.flux
                 if hasattr(flux, "value"):
                     flux = flux.value
                 if hasattr(flux, "mask"):
                     flux = np.ma.filled(flux, np.nan)
                 flux = np.array(flux, dtype=np.float32)
-
-                flux = flux[np.isfinite(flux)]  # remove NaN/inf
+                flux = flux[np.isfinite(flux)]
                 if len(flux) > 10:
                     return flux
             except Exception as e:
                 print(f"Lightkurve failed: {e}")
 
-        # --- Attempt 2: Manual FITS parse ---
+        # Attempt 2: Manual FITS parse
         with fits.open(io.BytesIO(original_bytes), memmap=False) as hdul:
             for hdu in hdul:
                 if not hasattr(hdu, "data") or hdu.data is None:
@@ -87,7 +84,7 @@ def read_fits_flux(file):
                     flux_cols = [n for n in names if "flux" in n.lower()]
                     if flux_cols:
                         data = hdu.data[flux_cols[0]]
-                        data = np.ma.filled(data, np.nan)  # fill masked
+                        data = np.ma.filled(data, np.nan)
                         flux = np.array(data, dtype=np.float32)
                         flux = flux[np.isfinite(flux)]
                         if len(flux) > 10:
@@ -118,16 +115,66 @@ def predict_flux_from_array(arr):
 
 
 # ------------------------
-# Streamlit Interface
+# Tabs
 # ------------------------
-tab1, tab2, tab3 = st.tabs(["🌐 Fetch from Mission", "📤 Upload Your Own File", "ℹ️ About / Model Info"])
+tab_intro, tab1, tab2 = st.tabs(["📖 Introduction", "🌐 Fetch from Mission", "📤 Upload Your Own File"])
 
+with tab_intro:
+    st.header("Welcome to the Exoplanet Transit Prediction App")
+    
+    st.markdown("""
+    This app allows you to **analyze light curves from stars** and predict whether they show signs of **exoplanet transits**.
+    
+    ### What is a FITS File?
+    - FITS stands for **Flexible Image Transport System**.
+    - It is the standard file format used in astronomy for storing images, spectra, and **time-series data** like light curves.
+    - Light curves represent the **brightness of a star over time**. Dips in brightness may indicate an exoplanet passing in front of the star (a transit).
+
+    ### How to Use This App
+    1. **Fetch from Mission**:
+        - Enter the target star ID (KIC for Kepler, TIC for TESS) and select the mission.
+        - Click **Download & Predict** to fetch light curves automatically.
+        - The app will display plots, predictions, and a summary for each file.
+    2. **Upload Your Own File**:
+        - Upload your own FITS, CSV, TXT, or NPY file containing light curve data.
+        - The app will parse the flux, make predictions, and show plots and a summary.
+    
+    ### Understanding the Results
+    - **Prediction**: Whether a transit is likely (`Yes`) or not (`No`).
+    - **Confidence**: Probability for each class (No Transit / Transit).
+    - **Light Curve Plot**: Visual representation of the star's brightness over time.
+    
+    ### Notes
+    - Ensure uploaded files contain valid numerical flux data.
+    - Large files may take a few seconds to process.
+    - The model is **EXPERIMENTAL** And **IS NOT** to be used for Professional applications.
+    
+    ### Model Information
+    - **Model used**: `synth_model.pt`
+    - **Sequence length**: {SEQ_LEN}
+    - **Device**: {DEVICE}
+    """)
+
+# ------------------------
+# TAB 1: Fetch from Kepler/TESS
+# ------------------------
 with tab1:
-    target_name = st.text_input("Target name (KIC/TIC/star)", "")
+    st.markdown("""
+    ## 🌐 Fetch Light Curves from Kepler or TESS
+    Enter the target name (KIC/TIC/star) and select the mission.  
+    The app will fetch up to the specified number of light curves, preprocess them, and predict transit likelihood.
+
+    **Tips:**
+    - Use official Kepler/TESS identifiers when possible.
+    - Only the first few light curves are fetched for speed.
+    - Results are experimental for demonstration.
+    """)
+
+    target_name = st.text_input("Target name", "Kepler-10")
     mission = st.selectbox("Mission", ["Kepler", "TESS"])
     max_files = st.number_input("Max light curves to fetch", min_value=1, max_value=10, value=3)
 
-    if st.button("Download & Predict"):
+    if st.button("Download & Predict", key="fetch_btn"):
         def download_lightkurve(target, mission="Kepler", max_files=3, out_dir="downloads"):
             if lk is None:
                 st.warning("Lightkurve not installed.")
@@ -165,26 +212,48 @@ with tab1:
                 st.markdown(result_text)
                 st.markdown(f"**Probabilities:** No Transit: {prob_no} | Transit: {prob_yes}")
 
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(figsize=(8, 3))
                 ax.plot(processed, color="blue")
                 ax.set_xlabel("Time (resampled)")
                 ax.set_ylabel("Normalized Flux")
+                ax.set_title("Light Curve Preview")
                 st.pyplot(fig)
 
                 st.divider()
-                st.markdown(f"#### 🌌 Exoplanet Summary for `{target_name}`")
                 st.markdown(f"""
+                #### 🌌 Exoplanet Summary for `{target_name}`
                 - **Target**: {target_name}
                 - **Mission**: {mission}
                 - **Files analyzed**: {i}
-                - **Transit Detection**: {"Yes" if pred == 1 else "No"}
+                - **Transit Detected**: {"Yes" if pred == 1 else "No"}
                 - **Confidence**: {prob_yes if pred == 1 else prob_no}
+                - **Model**: `synth_model.pt` (experimental)
                 """)
 
+# ------------------------
+# TAB 2: Upload File
+# ------------------------
 with tab2:
-    uploaded_file = st.file_uploader("Upload FITS, CSV, TXT, or NPY file", type=["fits", "csv", "txt", "npy"])
+    st.markdown("""
+    ## 📤 Upload Your Own Light Curve
+    Upload a **FITS, CSV, TXT, or NPY file** containing flux data.  
+    The model will predict if a potential exoplanet transit exists and display the light curve.
+
+    **Tips:**
+    - CSV/TXT: single column of flux values.
+    - FITS: Kepler/TESS light curves supported.
+    - Results are experimental for demonstration purposes.
+    """)
+
+    uploaded_file = st.file_uploader(
+        "Select a FITS, CSV, TXT, or NPY file",
+        type=["fits", "csv", "txt", "npy"],
+        help="Upload your light curve file. The app will predict if an exoplanet transit is likely."
+    )
+
     if uploaded_file:
         try:
+            # Read uploaded file
             if uploaded_file.name.endswith(".fits"):
                 flux = read_fits_flux(uploaded_file)
             elif uploaded_file.name.endswith(".csv"):
@@ -197,61 +266,35 @@ with tab2:
                 flux = None
 
             if flux is None or len(flux) == 0:
-                st.error("Could not process uploaded file. Please check format or content.")
+                st.error("⚠️ Could not process the file. Check its format or content.")
             else:
+                st.info("✅ File loaded successfully. Running prediction...")
                 pred, probs, processed = predict_flux_from_array(flux)
                 if pred is None:
-                    st.error("Prediction failed. Please check your file's format.")
+                    st.error("Prediction failed. Ensure the file contains valid flux data.")
                 else:
                     prob_no, prob_yes = f"{probs[0]*100:.2f}%", f"{probs[1]*100:.2f}%"
                     result_text = "🌍 **Exoplanet transit likely detected!**" if pred == 1 else "✨ **No exoplanet transit detected.**"
-
                     st.success(result_text)
+
                     st.markdown(f"**Probabilities:** No Transit: {prob_no} | Transit: {prob_yes}")
 
-                    fig, ax = plt.subplots()
+                    fig, ax = plt.subplots(figsize=(8, 3))
                     ax.plot(processed, color="green")
                     ax.set_xlabel("Time (resampled)")
                     ax.set_ylabel("Normalized Flux")
+                    ax.set_title("Light Curve Preview")
                     st.pyplot(fig)
 
                     st.divider()
-                    st.markdown(f"#### 🌌 Exoplanet Summary")
                     st.markdown(f"""
-                    - **File Name**: {uploaded_file.name}
-                    - **Transit Detected**: {"Yes" if pred == 1 else "No"}
-                    - **Confidence**: {prob_yes if pred == 1 else prob_no}
-                    - **Model Used**: `synth_model.pt`
+                    ### 🌌 Exoplanet Prediction Summary
+                    - **File Name:** {uploaded_file.name}
+                    - **Transit Detected:** {"Yes" if pred == 1 else "No"}
+                    - **Confidence:** {prob_yes if pred == 1 else prob_no}
+                    - **Model Used:** `synth_model.pt` (experimental)
+                    - **Note:** Results are indicative and for demonstration purposes.
                     """)
+
         except Exception as e:
             st.error(f"Error reading uploaded file: {e}")
-                    
-with tab3:
-    st.header("About This Exoplanet Transit Prediction App")
-    st.markdown("""
-    This application uses a **Transformer-based deep learning model** to detect possible exoplanet transits
-    from light curves obtained by **Kepler** and **TESS** missions.
-
-    ### How the Model Works
-    - The model is a **TimeSeriesTransformer**, trained on normalized flux arrays.
-    - It predicts whether a segment of a star's light curve shows signs of an **exoplanet transit**.
-    - Inputs can be **FITS files, CSV, TXT, or NPY arrays** of light curves.
-    - The model outputs a **binary classification** (Transit / No Transit) along with confidence probabilities.
-
-    ### Usage Instructions
-    1. **Fetch from Mission**: Enter the target star's ID (KIC/TIC) and mission, then download light curves automatically.
-    2. **Upload Your Own File**: Drag and drop your FITS/CSV/TXT/NPY file. Ensure it contains flux values over time.
-    3. **View Results**: For each light curve, the app plots the flux, shows prediction probabilities, and gives a summary.
-    
-    ### Model Details
-    - **Model file**: `synth_model.pt`
-    - **Sequence length used for training**: {SEQ_LEN}
-    - **Device used**: {DEVICE}
-    
-    ### Notes
-    - Make sure your uploaded file contains valid numerical flux data.
-    - For large FITS files, it might take a few seconds to parse and predict.
-    - **Caution:** The model is **currently experimental and intended for demonstration purposes only**. Do not rely on it for scientific or operational decisions.  
-
-    """)
-
