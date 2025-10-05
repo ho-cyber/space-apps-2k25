@@ -40,7 +40,7 @@ def load_model(model_path):
     model.eval()
     return model
 
-model = load_model("training/checkpoints/improved_model.pt")  # update if needed
+model = load_model("interface/models/synth_model.pt")  # update if needed
 
 # ------------------------
 # Helpers
