@@ -123,7 +123,7 @@ def predict_flux_from_array(arr):
 tab1, tab2, tab3 = st.tabs(["🌐 Fetch from Mission", "📤 Upload Your Own File", "ℹ️ About / Model Info"])
 
 with tab1:
-    target_name = st.text_input("Target name (KIC/TIC/star)", "Kepler-10")
+    target_name = st.text_input("Target name (KIC/TIC/star)", "")
     mission = st.selectbox("Mission", ["Kepler", "TESS"])
     max_files = st.number_input("Max light curves to fetch", min_value=1, max_value=10, value=3)
 
